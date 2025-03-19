@@ -1,0 +1,83 @@
+---
+title: "EDA_skincare"
+author: "Sofia Ward"
+date: "2025-03-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(httr)
+library(rvest)
+library(jsonlite)
+library(tidyverse)
+library(reticulate)
+library(dplyr)
+library(stringr)
+library(readxl)
+library(ggplot2)
+
+```
+
+### Removing NA's
+
+```{r}
+Christina0_600 <- read_excel("data/final_scraped_1200/Christina0-600.xlsx")
+fifi601_1200 <- read_excel("data/final_scraped_1200/fifi601_1200_.xlsx")
+scraped_sephora <- bind_rows(Christina0_600, fifi601_1200)
+
+colnames(scraped_sephora)
+
+filter <- scraped_sephora  %>% 
+  filter(!(`Skin Type` =="N/A" |`Skin Concerns` == "N/A" | `Product Rating` == "N/A"))
+
+#View(filter)
+sum(is.na(filter))
+
+dim(filter)
+```
+
+First we combined the excel scraped data. From there, we filter out all the rows/products that have `NA` values from the column Skin Type, Skin Concerns, and Product Rating because this implies that the products are not skincare products, but makeup or hair.
+
+### Formatting Price, Rating, Reviews, Size
+
+```{r}
+library(openxlsx)
+
+filter <- filter %>% 
+  mutate(across(`Product Price`, ~ as.numeric(gsub("\\$", "", .)))) %>%  # remove $ from price
+  mutate(
+    `Product Price` = as.numeric(`Product Price`),      # Ensure numeric conversions
+    `Product Rating` = round(as.numeric(`Product Rating`), 1), 
+    `Product Reviews` = as.numeric(`Product Reviews`)) %>% 
+  mutate(`Product Size` = case_when( 
+      `Product Size` == "N/A" ~ "No Size", 
+      TRUE ~ `Product Size`      # change N/A to No size
+    ) )
+
+head(filter)
+View(filter)
+write.xlsx(filter, "data/filtered_sephora.xlsx", overwrite = TRUE)
+
+
+```
+
+We did some data cleaning for our dataset to remove the `$` sign for our `Product Price` column and convert it to numeric columns for modeling. We also round all the `Product Rating` numbers to ensure data consistency.
+
+### Plot Product Rating and Reviews
+
+```{r}
+# Plot distribution of Product Rating
+ggplot(filter, aes(x = `Product Rating`)) +
+  geom_histogram(bins = 30, fill = "darkseagreen1", alpha = 0.7, color = "black") +
+  geom_density(aes(y = ..density.. * 30), color = "deeppink3", size = 1) +  # Overlay density
+  labs(title = "Distribution of Product Ratings", x = "Rating", y = "Count") +
+  theme_minimal()
+
+# Plot distribution of Product Reviews (log scale to handle large variations)
+ggplot(filter, aes(x = `Product Reviews`)) +
+  geom_histogram(bins = 30, fill = "darkseagreen", alpha = 0.7, color = "black") +
+  scale_x_log10() +  # Log scale for better visualization
+  labs(title = "Distribution of Product Reviews", x = "Number of Reviews (log10)", y = "Count") +
+  theme_minimal()
+```
